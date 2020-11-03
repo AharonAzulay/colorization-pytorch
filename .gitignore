@@ -42,3 +42,16 @@ test/.coverage
 test/data/legacy_serialized.pt
 *~
 .idea
+./checkpoints/siggraph_retrained/latest_net_G.pth
+./checkpoints/siggraph_caffemodel/latest_net_G.pth
+./checkpoints/siggraph_caffemodel/11_01_2126_net_G.pth
+./checkpoints/siggraph_caffemodel/11_01_2127_net_G.pth
+./checkpoints/siggraph_caffemodel/11_01_2130_net_G.pth
+./checkpoints/siggraph_class_small/latest_net_G.pth
+./checkpoints/siggraph_class_small/0_net_G.pth
+./checkpoints/siggraph_class_small/1_net_G.pth
+./checkpoints/siggraph_class_small/2_net_G.pth
+./checkpoints/siggraph_class_small/3_net_G.pth
+./checkpoints/siggraph_class_small/4_net_G.pth
+./checkpoints/siggraph_class_small/5_net_G.pth
+./checkpoints/siggraph_class_small/6_net_G.pth

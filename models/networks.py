@@ -131,6 +131,8 @@ class L1Loss(nn.Module):
         super(L1Loss, self).__init__()
 
     def __call__(self, in0, in1):
+        print(in0.shape)
+        print(in1.shape)
         return torch.sum(torch.abs(in0 - in1), dim=1, keepdim=True)
 
 
@@ -314,10 +316,10 @@ class SIGGRAPHGenerator(nn.Module):
         model10 += [nn.LeakyReLU(negative_slope=.2), ]
 
         # classification output
-        model_class = [nn.Conv2d(256, 529, kernel_size=1, padding=0, dilation=1, stride=1, bias=use_bias), ]
+        model_class = [nn.Conv2d(256, int(529*(self.output_nc/2)), kernel_size=1, padding=0, dilation=1, stride=1, bias=use_bias), ]
 
         # regression output
-        model_out = [nn.Conv2d(128, 2, kernel_size=1, padding=0, dilation=1, stride=1, bias=use_bias), ]
+        model_out = [nn.Conv2d(128, self.output_nc, kernel_size=1, padding=0, dilation=1, stride=1, bias=use_bias), ]
         if(use_tanh):
             model_out += [nn.Tanh()]
 
@@ -363,6 +365,7 @@ class SIGGRAPHGenerator(nn.Module):
             conv10_up = self.model10up(conv9_3) + self.model1short10(conv1_2.detach())
             conv10_2 = self.model10(conv10_up)
             out_reg = self.model_out(conv10_2)
+            
         else:
             out_class = self.model_class(conv8_3.detach())
 
@@ -371,7 +374,12 @@ class SIGGRAPHGenerator(nn.Module):
             conv10_up = self.model10up(conv9_3) + self.model1short10(conv1_2)
             conv10_2 = self.model10(conv10_up)
             out_reg = self.model_out(conv10_2)
-
+        
+        
+        print("out_class.shape")
+        print(out_class.shape)
+        print("out_reg.shape")
+        print(out_reg.shape)
         return (out_class, out_reg)
 
 # Defines the generator that consists of Resnet blocks between a few

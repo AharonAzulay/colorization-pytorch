@@ -24,8 +24,8 @@ if __name__ == '__main__':
     opt.num_threads = 1   # test code only supports num_threads = 1
     opt.batch_size = 1  # test code only supports batch_size = 1
     opt.display_id = -1  # no visdom display
-    opt.phase = 'val'
-    opt.dataroot = './dataset/ilsvrc2012/%s/' % opt.phase
+    opt.phase = 'test'
+    opt.dataroot = '/cnvrg/colorization-pytorch/dataset/ilsvrc2012/%s/' % opt.phase
     opt.serial_batches = True
     opt.aspect_ratio = 1.
 
