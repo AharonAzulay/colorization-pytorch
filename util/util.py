@@ -84,7 +84,7 @@ def rgb2xyz(rgb): # rgb from [0,1]
         mask = mask.cuda()
 
     rgb = (((rgb+.055)/1.055)**2.4)*mask + rgb/12.92*(1-mask)
-    print(rgb.shape)
+    # print(rgb.shape)
     x = .412453*rgb[:,0,:,:]+.357580*rgb[:,1,:,:]+.180423*rgb[:,2,:,:]
     y = .212671*rgb[:,0,:,:]+.715160*rgb[:,1,:,:]+.072169*rgb[:,2,:,:]
     z = .019334*rgb[:,0,:,:]+.119193*rgb[:,1,:,:]+.950227*rgb[:,2,:,:]
