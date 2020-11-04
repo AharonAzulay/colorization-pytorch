@@ -249,16 +249,57 @@ class Pix2PixModel(BaseModel):
         self.backward_G()
         self.optimizer_G.step()
 
+    def cat_stride(self,A,B,dim):
+        sizeA = A.shape[dim]
+        sizeB = B.shape[dim]
+        out = []
+        ratio = (sizeA/sizeB)
+        if (ratio%1 != 0):
+            return None
+        ratio = int(ratio)
+        for i,ii in enumerate(range(0,sizeA,ratio)):
+            out.append(np.take_along_axis(A,np.arange(i,i+ratio),dim))
+            out.append(np.take_along_axis(B,np.arange(ii,ii+1),dim))
+
+        return out
+
+    def combine_dims(self,a, i=0, n=1):
+        """
+        Combines dimensions of numpy array `a`,
+        starting at index `i`,
+        and combining `n` dimensions
+        """
+        s = list(a.shape)
+        combined = functools.reduce(lambda x, y: x * y, s[i:i + n + 1])
+        return np.reshape(a, s[:i] + [combined] + s[i + n + 1:])
+
+
     def get_current_visuals(self):
         from collections import OrderedDict
         visual_ret = OrderedDict()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        visual_ret['gray'] = util.lab2rgb(torch.cat((self.real_A.type(torch.FloatTensor).to(device),
-                                                     torch.zeros_like(self.real_B).type(torch.FloatTensor).to(device)),
-                                                    dim=1), self.opt)
-        visual_ret['real'] = util.lab2rgb(
-            torch.cat((self.real_A.type(torch.FloatTensor).to(device), self.real_B.type(torch.FloatTensor).to(device)),
-                      dim=1), self.opt)
+        tempA = self.real_A.reshape((-1,self.opt.n_frames,1,self.opt.loadSize,self.opt.loadSize))
+        tempB = self.real_B.reshape((-1,self.opt.n_frames,2,self.opt.loadSize,self.opt.loadSize))
+        tempfake_B = self.fake_B_reg.reshape((-1,self.opt.n_frames,2,self.opt.loadSize,self.opt.loadSize))
+        visual_ret['gray'] = []
+        visual_ret['real'] = []
+        visual_ret['fake_reg'] = []
+        for f in range(1):
+            visual_ret['gray'].append(util.lab2rgb(torch.cat((tempA[:,f].type(torch.FloatTensor).to(device),
+                                                         torch.zeros_like(tempB[:,f]).type(torch.FloatTensor).to(device)),
+                                                        dim=1), self.opt))
+            visual_ret['real'].append(util.lab2rgb(
+                torch.cat((tempA[:,f].type(torch.FloatTensor).to(device), tempB[:,f].type(torch.FloatTensor).to(device)),
+                          dim=1), self.opt))
+
+            visual_ret['fake_reg'].append(util.lab2rgb(torch.cat(
+                (tempA[:,f].type(torch.FloatTensor).to(device), tempfake_B[:,f].type(torch.FloatTensor).to(device)),
+                dim=1), self.opt))
+
+        visual_ret['real'] = torch.cat(visual_ret['real'],1)
+        visual_ret['gray'] = torch.cat(visual_ret['gray'],1)
+        visual_ret['fake_reg'] = torch.cat(visual_ret['fake_reg'],1)
+
 
         visual_ret['fake_max'] = util.lab2rgb(torch.cat(
             (self.real_A.type(torch.FloatTensor).to(device), self.fake_B_dec_max.type(torch.FloatTensor).to(device)),
@@ -266,9 +307,7 @@ class Pix2PixModel(BaseModel):
         visual_ret['fake_mean'] = util.lab2rgb(torch.cat(
             (self.real_A.type(torch.FloatTensor).to(device), self.fake_B_dec_mean.type(torch.FloatTensor).to(device)),
             dim=1), self.opt)
-        visual_ret['fake_reg'] = util.lab2rgb(torch.cat(
-            (self.real_A.type(torch.FloatTensor).to(device), self.fake_B_reg.type(torch.FloatTensor).to(device)),
-            dim=1), self.opt)
+
 
         visual_ret['hint'] = util.lab2rgb(
             torch.cat((self.real_A.type(torch.FloatTensor).to(device), self.hint_B.type(torch.FloatTensor).to(device)),
@@ -289,14 +328,14 @@ class Pix2PixModel(BaseModel):
             self.real_A.type(torch.FloatTensor).to(device)), self.fake_B_reg.type(torch.FloatTensor).to(device)),
                                                            dim=1), self.opt)
 
-        visual_ret['mask'] = self.mask_B_nc.expand(-1, 3, -1, -1).type(torch.FloatTensor).to(device)
-        visual_ret['hint_ab'] = visual_ret['mask'] * util.lab2rgb(torch.cat((torch.zeros_like(
-            self.real_A.type(torch.FloatTensor).to(device)), self.hint_B.type(torch.FloatTensor).to(device)), dim=1),
-                                                                  self.opt)
+        # visual_ret['mask'] = self.mask_B_nc.expand(-1, 3, -1, -1).type(torch.FloatTensor).to(device)
+        # visual_ret['hint_ab'] = visual_ret['mask'] * util.lab2rgb(torch.cat((torch.zeros_like(
+        #     self.real_A.type(torch.FloatTensor).to(device)), self.hint_B.type(torch.FloatTensor).to(device)), dim=1),
+        #                                                           self.opt)
 
-        C = self.fake_B_distr.shape[1]
+        # C = self.fake_B_distr.shape[1]
         # scale to [-1, 2], then clamped to [-1, 1]
-        visual_ret['fake_entr'] = torch.clamp(3 * self.fake_B_entr.expand(-1, 3, -1, -1) / np.log(C) - 1, -1, 1)
+        # visual_ret['fake_entr'] = torch.clamp(3 * self.fake_B_entr.expand(-1, 3, -1, -1) / np.log(C) - 1, -1, 1)
 
         return visual_ret
 
