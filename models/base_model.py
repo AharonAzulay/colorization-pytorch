@@ -134,6 +134,12 @@ class BaseModel():
                 # patch InstanceNorm checkpoints prior to 0.4
                 for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
                     self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
+                if (self.opt.start_from_single_frame):
+                    state_dict["model1.0.weight"] = state_dict["model1.0.weight"].repeat(1,self.opt.n_frames,1,1)
+                    state_dict["model_class.0.weight"] = state_dict["model_class.0.weight"].repeat(self.opt.n_frames, 1, 1, 1)
+                    state_dict["model_class.0.bias"] = state_dict["model_class.0.bias"].repeat(self.opt.n_frames)
+                    state_dict["model_out.0.weight"] = state_dict["model_out.0.weight"].repeat(self.opt.n_frames, 1, 1, 1)
+                    state_dict["model_out.0.bias"] = state_dict["model_out.0.bias"].repeat(self.opt.n_frames)
                 net.load_state_dict(state_dict)
 
     # print network information

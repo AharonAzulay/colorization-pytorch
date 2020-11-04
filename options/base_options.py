@@ -58,6 +58,7 @@ class BaseOptions():
         parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
         parser.add_argument('--how_many', type=int, default=200, help='how many test images to run')
         parser.add_argument('--aspect_ratio', type=float, default=1.0, help='aspect ratio of result images')
+        parser.add_argument('--start_from_single_frame', action='store_true', help='start multi input training with duplicated single input weights')
 
         parser.add_argument('--load_model', action='store_true', help='load the latest model')
         parser.add_argument('--half', action='store_true', help='half precision model')
