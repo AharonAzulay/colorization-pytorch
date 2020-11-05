@@ -115,6 +115,8 @@ class BaseOptions():
 
         opt = self.gather_options()
         opt.isTrain = self.isTrain   # train or test
+        opt.output_nc = opt.n_frames*2
+        opt.input_nc = opt.n_frames
 
         # process opt.suffix
         if opt.suffix:

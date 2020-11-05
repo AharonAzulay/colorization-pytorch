@@ -104,7 +104,8 @@ if __name__ == '__main__':
 
     model.setup(opt)
     model.print_networks(True)
-
+    model.save_networks('latest')
+    exit()
     visualizer = Visualizer(opt)
     total_steps = 0
     mode = "Imagenet"

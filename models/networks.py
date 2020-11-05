@@ -3,8 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-
-
+import matplotlib.pyplot as plt
 ###############################################################################
 # Helper Functions
 ###############################################################################
@@ -180,17 +179,30 @@ class SIGGRAPHGenerator(nn.Module):
         self.input_nc = input_nc
         self.output_nc = output_nc
         self.classification = classification
+        self.n_frames = int(input_nc / 4)
         use_bias = True
-
+        norm_layer3d = nn.BatchNorm3d
         # Conv1
         # model1=[nn.ReflectionPad2d(1),]
-        model1 = [nn.Conv2d(input_nc, 64, kernel_size=3, stride=1, padding=1, bias=use_bias), ]
+        # model1 = [nn.Conv2d(input_nc, 64, kernel_size=3, stride=1, padding=1, bias=use_bias), ]
+
+
+        # model1 = [nn.Conv3d(4, 64, kernel_size=(self.n_frames,3,3), stride=1, padding=(0,1,1), bias=use_bias), ]
+        # # model1+=[norm_layer(64),]
+        # model1 += [nn.ReLU(True), ]
+        # # model1+=[nn.ReflectionPad2d(1),]
+        # model1 += [nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=2, bias=use_bias), ]
+        # model1 += [nn.ReLU(True), ]
+        # model1 += [norm_layer(64), ]
+
+
+        model1 = [nn.Conv3d(4, 64, kernel_size=(self.n_frames,3,3), stride=1, padding=(0,1,1), bias=use_bias), ]
         # model1+=[norm_layer(64),]
         model1 += [nn.ReLU(True), ]
         # model1+=[nn.ReflectionPad2d(1),]
-        model1 += [nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=use_bias), ]
+        model1 += [nn.Conv3d(64, 64, kernel_size=(1,3,3), stride=1, padding=(0,1,1), bias=use_bias), ]
         model1 += [nn.ReLU(True), ]
-        model1 += [norm_layer(64), ]
+        model1 += [norm_layer3d(64), ]
         # add a subsampling operation
 
         # Conv2
@@ -352,7 +364,15 @@ class SIGGRAPHGenerator(nn.Module):
         self.softmax = nn.Sequential(*[nn.Softmax(dim=1), ])
 
     def forward(self, input_A, input_B, mask_B):
-        conv1_2 = self.model1(torch.cat((input_A, input_B, mask_B), dim=1))
+        input_B = input_B.reshape((-1,2,input_A.shape[1],input_A.shape[2],input_A.shape[3]))
+        mask_B = mask_B.reshape((-1,1,input_A.shape[1],input_A.shape[2],input_A.shape[3]))
+        input_A = input_A.reshape((-1,1,input_A.shape[1],input_A.shape[2],input_A.shape[3]))
+        data = torch.cat((input_A, input_B, mask_B), dim=1)
+        # s = data.shape
+        # data = data.reshape((s[0],s[1]*s[2],s[3],s[4]))
+        conv1_2 = self.model1(data).squeeze(2)
+        # plt.imshow(conv1_2[0,33,:,:]),plt.show()
+        print("n_frames: {} ; value of neuron: {}".format(input_A.shape[1],conv1_2[0,33,0,0:10]))
         conv2_2 = self.model2(conv1_2[:, :, ::2, ::2])
         conv3_3 = self.model3(conv2_2[:, :, ::2, ::2])
         conv4_3 = self.model4(conv3_3[:, :, ::2, ::2])

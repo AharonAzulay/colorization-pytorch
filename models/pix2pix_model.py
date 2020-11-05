@@ -263,16 +263,6 @@ class Pix2PixModel(BaseModel):
 
         return out
 
-    def combine_dims(self,a, i=0, n=1):
-        """
-        Combines dimensions of numpy array `a`,
-        starting at index `i`,
-        and combining `n` dimensions
-        """
-        s = list(a.shape)
-        combined = functools.reduce(lambda x, y: x * y, s[i:i + n + 1])
-        return np.reshape(a, s[:i] + [combined] + s[i + n + 1:])
-
 
     def get_current_visuals(self):
         from collections import OrderedDict
