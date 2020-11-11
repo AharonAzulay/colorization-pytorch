@@ -1,1 +1,0 @@
-python test.py --name siggraph_class --sample_p 1.0 --niter_decay 0 --classification --load_model --phase test --input_nc 1 --output_nc 2 --n_frames 1 --how_many 50 --gpu_ids 0

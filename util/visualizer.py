@@ -4,7 +4,8 @@ import ntpath
 import time
 from . import util
 from . import html
-import cv2
+from scipy.misc import imresize
+
 
 # save image to the disk
 def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
@@ -21,11 +22,9 @@ def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
         save_path = os.path.join(image_dir, image_name)
         h, w, _ = im.shape
         if aspect_ratio > 1.0:
-            # im = imresize(im, (h, int(w * aspect_ratio)), interp='bicubic')
-            im = cv2.resize(src=im,dsize=(h, int(w * aspect_ratio)),interpolation=cv2.INTER_CUBIC)
+            im = imresize(im, (h, int(w * aspect_ratio)), interp='bicubic')
         if aspect_ratio < 1.0:
-            # im = imresize(im, (int(h / aspect_ratio), w), interp='bicubic')
-            im = cv2.resize(src=im,dsize=(int(h / aspect_ratio), w),interpolation=cv2.INTER_CUBIC)
+            im = imresize(im, (int(h / aspect_ratio), w), interp='bicubic')
         util.save_image(im, save_path)
 
         ims.append(image_name)

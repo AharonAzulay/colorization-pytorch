@@ -21,7 +21,7 @@ class BaseOptions():
         parser.add_argument('--which_model_netD', type=str, default='basic', help='selects model to use for netD')
         parser.add_argument('--which_model_netG', type=str, default='siggraph', help='selects model to use for netG')
         parser.add_argument('--n_layers_D', type=int, default=3, help='only used if which_model_netD==n_layers')
-        parser.add_argument('--gpu_ids', type=str, default='-1', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
+        parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment. It decides where to store samples and models')
         parser.add_argument('--dataset_mode', type=str, default='aligned', help='chooses how datasets are loaded. [unaligned | aligned | single]')
         parser.add_argument('--model', type=str, default='pix2pix',
@@ -58,7 +58,6 @@ class BaseOptions():
         parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
         parser.add_argument('--how_many', type=int, default=200, help='how many test images to run')
         parser.add_argument('--aspect_ratio', type=float, default=1.0, help='aspect ratio of result images')
-        parser.add_argument('--start_from_single_frame', action='store_true', help='start multi input training with duplicated single input weights')
 
         parser.add_argument('--load_model', action='store_true', help='load the latest model')
         parser.add_argument('--half', action='store_true', help='half precision model')
@@ -115,8 +114,6 @@ class BaseOptions():
 
         opt = self.gather_options()
         opt.isTrain = self.isTrain   # train or test
-        opt.output_nc = opt.n_frames*2
-        opt.input_nc = opt.n_frames
 
         # process opt.suffix
         if opt.suffix:

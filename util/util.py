@@ -77,14 +77,13 @@ def rgb2xyz(rgb): # rgb from [0,1]
     # xyz_from_rgb = np.array([[0.412453, 0.357580, 0.180423],
         # [0.212671, 0.715160, 0.072169],
         # [0.019334, 0.119193, 0.950227]])
-    if (len(rgb.shape) == 3):
-        rgb = rgb.unsqueeze(0)
+
     mask = (rgb > .04045).type(torch.FloatTensor)
     if(rgb.is_cuda):
         mask = mask.cuda()
 
     rgb = (((rgb+.055)/1.055)**2.4)*mask + rgb/12.92*(1-mask)
-    # print(rgb.shape)
+
     x = .412453*rgb[:,0,:,:]+.357580*rgb[:,1,:,:]+.180423*rgb[:,2,:,:]
     y = .212671*rgb[:,0,:,:]+.715160*rgb[:,1,:,:]+.072169*rgb[:,2,:,:]
     z = .019334*rgb[:,0,:,:]+.119193*rgb[:,1,:,:]+.950227*rgb[:,2,:,:]
@@ -193,7 +192,7 @@ def lab2rgb(lab_rs, opt):
 def get_colorization_data(data_raw, opt, ab_thresh=5., p=.125, num_points=None):
     data = {}
 
-    data_lab = rgb2lab(data_raw, opt)
+    data_lab = rgb2lab(data_raw[0], opt)
     data['A'] = data_lab[:,[0,],:,:]
     data['B'] = data_lab[:,1:,:,:]
 
@@ -272,8 +271,8 @@ def crop_mult(data,mult=16,HWmax=[800,1200]):
     H,W = data.shape[2:]
     Hnew = int(min(H/mult*mult,HWmax[0]))
     Wnew = int(min(W/mult*mult,HWmax[1]))
-    h = int((H-Hnew)/2)
-    w = int((W-Wnew)/2)
+    h = (H-Hnew)/2
+    w = (W-Wnew)/2
 
     return data[:,:,h:h+Hnew,w:w+Wnew]
 
