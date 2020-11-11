@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-
+import matplotlib.pyplot as plt
 ###############################################################################
 # Helper Functions
 ###############################################################################
@@ -26,6 +26,7 @@ def get_scheduler(optimizer, opt):
         def lambda_rule(epoch):
             lr_l = 1.0 - max(0, epoch + 1 + opt.epoch_count - opt.niter) / float(opt.niter_decay + 1)
             return lr_l
+
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
     elif opt.lr_policy == 'step':
         scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
@@ -62,14 +63,15 @@ def init_weights(net, init_type='xavier', gain=0.02):
 
 def init_net(net, init_type='xavier', gpu_ids=[]):
     if len(gpu_ids) > 0:
-        assert(torch.cuda.is_available())
+        assert (torch.cuda.is_available())
         net.to(gpu_ids[0])
         net = torch.nn.DataParallel(net, gpu_ids)
     init_weights(net, init_type)
     return net
 
 
-def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropout=False, init_type='xavier', gpu_ids=[], use_tanh=True, classification=True):
+def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropout=False, init_type='xavier',
+             gpu_ids=[], use_tanh=True, classification=True):
     netG = None
     norm_layer = get_norm_layer(norm_type=norm)
 
@@ -82,7 +84,8 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropo
     elif which_model_netG == 'unet_256':
         netG = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif which_model_netG == 'siggraph':
-        netG = SIGGRAPHGenerator(input_nc, output_nc, norm_layer=norm_layer, use_tanh=use_tanh, classification=classification)
+        netG = SIGGRAPHGenerator(input_nc, output_nc, norm_layer=norm_layer, use_tanh=use_tanh,
+                                 classification=classification)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % which_model_netG)
     return init_net(netG, init_type, gpu_ids)
@@ -118,7 +121,7 @@ class HuberLoss(nn.Module):
     def __call__(self, in0, in1):
         mask = torch.zeros_like(in0)
         mann = torch.abs(in0 - in1)
-        eucl = .5 * (mann**2)
+        eucl = .5 * (mann ** 2)
         mask[...] = mann < self.delta
 
         # loss = eucl*mask + self.delta*(mann-.5*self.delta)*(1-mask)
@@ -131,6 +134,8 @@ class L1Loss(nn.Module):
         super(L1Loss, self).__init__()
 
     def __call__(self, in0, in1):
+        #         print(in0.shape)
+        #         print(in1.shape)
         return torch.sum(torch.abs(in0 - in1), dim=1, keepdim=True)
 
 
@@ -139,7 +144,7 @@ class L2Loss(nn.Module):
         super(L2Loss, self).__init__()
 
     def __call__(self, in0, in1):
-        return torch.sum((in0 - in1)**2, dim=1, keepdim=True)
+        return torch.sum((in0 - in1) ** 2, dim=1, keepdim=True)
 
 
 # Defines the GAN loss which uses either LSGAN or the regular GAN.
@@ -174,17 +179,30 @@ class SIGGRAPHGenerator(nn.Module):
         self.input_nc = input_nc
         self.output_nc = output_nc
         self.classification = classification
+        self.n_frames = int(input_nc / 4)
         use_bias = True
-
+        norm_layer3d = nn.BatchNorm3d
         # Conv1
         # model1=[nn.ReflectionPad2d(1),]
-        model1 = [nn.Conv2d(input_nc, 64, kernel_size=3, stride=1, padding=1, bias=use_bias), ]
+        # model1 = [nn.Conv2d(input_nc, 64, kernel_size=3, stride=1, padding=1, bias=use_bias), ]
+
+
+        # model1 = [nn.Conv3d(4, 64, kernel_size=(self.n_frames,3,3), stride=1, padding=(0,1,1), bias=use_bias), ]
+        # # model1+=[norm_layer(64),]
+        # model1 += [nn.ReLU(True), ]
+        # # model1+=[nn.ReflectionPad2d(1),]
+        # model1 += [nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=2, bias=use_bias), ]
+        # model1 += [nn.ReLU(True), ]
+        # model1 += [norm_layer(64), ]
+
+
+        model1 = [nn.Conv3d(4, 64, kernel_size=(self.n_frames,3,3), stride=1, padding=(0,1,1), bias=use_bias), ]
         # model1+=[norm_layer(64),]
         model1 += [nn.ReLU(True), ]
         # model1+=[nn.ReflectionPad2d(1),]
-        model1 += [nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=use_bias), ]
+        model1 += [nn.Conv3d(64, 64, kernel_size=(1,3,3), stride=1, padding=(0,1,1), bias=use_bias), ]
         model1 += [nn.ReLU(True), ]
-        model1 += [norm_layer(64), ]
+        model1 += [norm_layer3d(64), ]
         # add a subsampling operation
 
         # Conv2
@@ -314,11 +332,12 @@ class SIGGRAPHGenerator(nn.Module):
         model10 += [nn.LeakyReLU(negative_slope=.2), ]
 
         # classification output
-        model_class = [nn.Conv2d(256, 529, kernel_size=1, padding=0, dilation=1, stride=1, bias=use_bias), ]
+        model_class = [nn.Conv2d(256, int(529 * (self.output_nc / 2)), kernel_size=1, padding=0, dilation=1, stride=1,
+                                 bias=use_bias), ]
 
         # regression output
-        model_out = [nn.Conv2d(128, 2, kernel_size=1, padding=0, dilation=1, stride=1, bias=use_bias), ]
-        if(use_tanh):
+        model_out = [nn.Conv2d(128, self.output_nc, kernel_size=1, padding=0, dilation=1, stride=1, bias=use_bias), ]
+        if (use_tanh):
             model_out += [nn.Tanh()]
 
         self.model1 = nn.Sequential(*model1)
@@ -345,7 +364,15 @@ class SIGGRAPHGenerator(nn.Module):
         self.softmax = nn.Sequential(*[nn.Softmax(dim=1), ])
 
     def forward(self, input_A, input_B, mask_B):
-        conv1_2 = self.model1(torch.cat((input_A, input_B, mask_B), dim=1))
+        input_B = input_B.reshape((-1,2,input_A.shape[1],input_A.shape[2],input_A.shape[3]))
+        mask_B = mask_B.reshape((-1,1,input_A.shape[1],input_A.shape[2],input_A.shape[3]))
+        input_A = input_A.reshape((-1,1,input_A.shape[1],input_A.shape[2],input_A.shape[3]))
+        data = torch.cat((input_A, input_B, mask_B), dim=1)
+        # s = data.shape
+        # data = data.reshape((s[0],s[1]*s[2],s[3],s[4]))
+        conv1_2 = self.model1(data).squeeze(2)
+        # plt.imshow(conv1_2[0,33,:,:]),plt.show()
+        # print("n_frames: {} ; value of neuron: {}".format(input_A.shape[1],conv1_2[0,33,0,0:10]))
         conv2_2 = self.model2(conv1_2[:, :, ::2, ::2])
         conv3_3 = self.model3(conv2_2[:, :, ::2, ::2])
         conv4_3 = self.model4(conv3_3[:, :, ::2, ::2])
@@ -355,7 +382,7 @@ class SIGGRAPHGenerator(nn.Module):
         conv8_up = self.model8up(conv7_3) + self.model3short8(conv3_3)
         conv8_3 = self.model8(conv8_up)
 
-        if(self.classification):
+        if (self.classification):
             out_class = self.model_class(conv8_3)
 
             conv9_up = self.model9up(conv8_3.detach()) + self.model2short9(conv2_2.detach())
@@ -363,6 +390,7 @@ class SIGGRAPHGenerator(nn.Module):
             conv10_up = self.model10up(conv9_3) + self.model1short10(conv1_2.detach())
             conv10_2 = self.model10(conv10_up)
             out_reg = self.model_out(conv10_2)
+
         else:
             out_class = self.model_class(conv8_3.detach())
 
@@ -372,7 +400,12 @@ class SIGGRAPHGenerator(nn.Module):
             conv10_2 = self.model10(conv10_up)
             out_reg = self.model_out(conv10_2)
 
+        #         print("out_class.shape")
+        #         print(out_class.shape)
+        #         print("out_reg.shape")
+        #         print(out_reg.shape)
         return (out_class, out_reg)
+
 
 # Defines the generator that consists of Resnet blocks between a few
 # downsampling/upsampling operations.
@@ -381,8 +414,9 @@ class SIGGRAPHGenerator(nn.Module):
 
 
 class ResnetGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6, padding_type='reflect'):
-        assert(n_blocks >= 0)
+    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False, n_blocks=6,
+                 padding_type='reflect'):
+        assert (n_blocks >= 0)
         super(ResnetGenerator, self).__init__()
         self.input_nc = input_nc
         self.output_nc = output_nc
@@ -400,18 +434,19 @@ class ResnetGenerator(nn.Module):
 
         n_downsampling = 2
         for i in range(n_downsampling):
-            mult = 2**i
+            mult = 2 ** i
             model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3,
                                 stride=2, padding=1, bias=use_bias),
                       norm_layer(ngf * mult * 2),
                       nn.ReLU(True)]
 
-        mult = 2**n_downsampling
+        mult = 2 ** n_downsampling
         for i in range(n_blocks):
-            model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+            model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout,
+                                  use_bias=use_bias)]
 
         for i in range(n_downsampling):
-            mult = 2**(n_downsampling - i)
+            mult = 2 ** (n_downsampling - i)
             model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
                                          kernel_size=3, stride=2,
                                          padding=1, output_padding=1,
@@ -481,13 +516,18 @@ class UnetGenerator(nn.Module):
         super(UnetGenerator, self).__init__()
 
         # construct unet structure
-        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
+        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer,
+                                             innermost=True)
         for i in range(num_downs - 5):
-            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
-        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block,
+                                                 norm_layer=norm_layer, use_dropout=use_dropout)
+        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block,
+                                             norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block,
+                                             norm_layer=norm_layer)
         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True,
+                                             norm_layer=norm_layer)
 
         self.model = unet_block
 
@@ -572,7 +612,7 @@ class NLayerDiscriminator(nn.Module):
         nf_mult_prev = 1
         for n in range(1, n_layers):
             nf_mult_prev = nf_mult
-            nf_mult = min(2**n, 8)
+            nf_mult = min(2 ** n, 8)
             sequence += [
                 nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
                           kernel_size=kw, stride=2, padding=padw, bias=use_bias),
@@ -581,7 +621,7 @@ class NLayerDiscriminator(nn.Module):
             ]
 
         nf_mult_prev = nf_mult
-        nf_mult = min(2**n_layers, 8)
+        nf_mult = min(2 ** n_layers, 8)
         sequence += [
             nn.Conv2d(ndf * nf_mult_prev, ndf * nf_mult,
                       kernel_size=kw, stride=1, padding=padw, bias=use_bias),

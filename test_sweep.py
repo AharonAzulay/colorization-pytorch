@@ -22,7 +22,7 @@ if __name__ == '__main__':
     opt.phase = 'test'
     opt.dataroot = './dataset/ilsvrc2012/%s/' % opt.phase
     opt.loadSize = 256
-    opt.how_many = 1000
+    opt.how_many = 5
     opt.aspect_ratio = 1.0
     opt.sample_Ps = [6, ]
     opt.load_model = True
@@ -52,9 +52,12 @@ if __name__ == '__main__':
 
     bar = pb.ProgressBar(max_value=opt.how_many)
     for i, data_raw in enumerate(dataset_loader):
+        print("data_raw[0].shape")
+        print(data_raw[0].shape)
         data_raw[0] = data_raw[0].cuda()
         data_raw[0] = util.crop_mult(data_raw[0], mult=8)
-
+        print("data_raw[0].shape")
+        print(data_raw[0].shape)
         for nn in range(N):
             # embed()
             data = util.get_colorization_data(data_raw, opt, ab_thresh=0., num_points=num_points[nn])
@@ -62,14 +65,24 @@ if __name__ == '__main__':
             model.set_input(data)
             model.test()
             visuals = model.get_current_visuals()
+            real = util.tensor2im(visuals['real'])
+            generated = util.tensor2im(visuals['fake_reg'])
 
-            psnrs[i, nn] = util.calculate_psnr_np(util.tensor2im(visuals['real']), util.tensor2im(visuals['fake_reg']))
-
+            
+            psnrs[i, nn] = util.calculate_psnr_np(real, generated)
+            
+        plt.subplot(121)
+        plt.imshow(real)
+        plt.subplot(122)
+        plt.imshow(generated)
+        plt.title("PSNR: " + str(psnrs[i, nn]))
+        plt.savefig("real_vs_generated" + str(i) + ".png")
+        
         if i == opt.how_many - 1:
             break
 
         bar.update(i)
-
+    print(psnrs)
     # Save results
     psnrs_mean = np.mean(psnrs, axis=0)
     psnrs_std = np.std(psnrs, axis=0) / np.sqrt(opt.how_many)
@@ -77,12 +90,14 @@ if __name__ == '__main__':
     np.save('./checkpoints/%s/psnrs_mean_%s' % (opt.name, str_now), psnrs_mean)
     np.save('./checkpoints/%s/psnrs_std_%s' % (opt.name, str_now), psnrs_std)
     np.save('./checkpoints/%s/psnrs_%s' % (opt.name, str_now), psnrs)
-    print(', ').join(['%.2f' % psnr for psnr in psnrs_mean])
+#     print(psnrs_mean)
+#     print([psnr for psnr in psnrs_mean])
+#     print(', ').join(['%.2f' % psnr for psnr in psnrs_mean])
 
     old_results = np.load('./resources/psnrs_siggraph.npy')
     old_mean = np.mean(old_results, axis=0)
     old_std = np.std(old_results, axis=0) / np.sqrt(old_results.shape[0])
-    print(', ').join(['%.2f' % psnr for psnr in old_mean])
+#     print(', ').join(['%.2f' % psnr for psnr in old_mean])
 
     num_points_hack = 1. * num_points
     num_points_hack[0] = .4
