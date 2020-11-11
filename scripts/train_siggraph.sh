@@ -32,3 +32,7 @@ python train.py --name siggraph_reg2 --sample_p .125 --niter 1 --niter_decay 0 -
 mkdir ./checkpoints/siggraph_class_video
 cp ./checkpoints/siggraph_reg2/latest_net_G.pth ./checkpoints/siggraph_class_video/
 python train.py --name siggraph_class_video --sample_p .125 --niter 100 --niter_decay 0 --load_model --phase train --gpu_ids 0 --load_model --dataroot "/isilon/Datasets/Youtube_Sky/clips/" --n_frames 5 --lr 0.000001
+
+
+
+#--name siggraph_class_video --sample_p 1.0 --niter 100 --niter_decay 0 --classification --load_model --phase train_small --load_model --n_frames 10 --lr 0.000001 --dataroot "/Users/aazulay/datasets/SkyvideoDataset/clips/" --num_threads 0

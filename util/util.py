@@ -203,8 +203,8 @@ def get_colorization_data(data_raw, opt, ab_thresh=5., p=.125, num_points=None):
         data['A'] = data['A'][mask,:,:,:]
         data['B'] = data['B'][mask,:,:,:]
         # print('Removed %i points'%torch.sum(mask==0).numpy())
-        if(torch.sum(mask)==0):
-            return None
+        # if(torch.sum(mask)==0):
+        #     return None
 
     return add_color_patches_rand_gt(data, opt, p=p, num_points=num_points)
 

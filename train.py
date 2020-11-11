@@ -12,22 +12,27 @@ from util import util
 import numpy as np
 import cv2
 from PIL import Image
+from skimage.transform import resize, AffineTransform, warp
+from skimage import io, transform
+import os
 
-
-class SkyDataset(Dataset):
-    def __init__(self, root_dir, n=1, transform=None, affine=1, device='cpu', imsize=256, mode="train"):
+class SyntheticDataset(Dataset):
+    def __init__(self, root_dir, n=1, transform=None, affine=1, imsize=256, mode="train"):
         self.root_dir = root_dir
         self.transform = transform
+        self.Imagelist = []
         if (mode == "train"):
-            self.imdir = self.root_dir + 'train/'
+            self.imdir = self.root_dir
         else:
             self.imdir = self.root_dir + 'val/'
-        self.Imagelist = [f for f in listdir(self.imdir) if isfile(join(self.imdir, f))]
+        for path, subdirs, files in os.walk(self.imdir):
+            for name in files:
+                if ("DS" not in name):
+                    self.Imagelist.append(os.path.join(path, name))
         self.n_images = len(self.Imagelist)
         self.n = n
         self.c = 0
         self.affine = affine
-        self.device = device
         self.imsize = imsize
 
     def __len__(self):
@@ -38,45 +43,43 @@ class SkyDataset(Dataset):
 
         if torch.is_tensor(idx):
             idx = idx.tolist()
-            c += 1
-            img_name = self.Imagelist[idx]
-            image = io.imread(self.imdir + img_name)
-            height, width = image.shape[:2]
-            s = np.min([width, height])
+        c += 1
+        img_name = self.Imagelist[idx]
+        image = io.imread(img_name)
+        if (len(image.shape) == 2):
+            image = np.repeat(image[:,:,None],3,2)
+        height, width = image.shape[:2]
+        s = np.min([width, height])
 
-            # random horizontal flip
-            if (np.random.rand() > 0.5):
-                image = image[:, ::-1]
+        # random horizontal flip
+        if (np.random.rand() > 0.5):
+            image = image[:, ::-1]
 
-            h, w = image.shape[:2]
-            scales = np.linspace(0.999, 1.001, 30)
-            scale = np.random.choice(scales)
-            rots = np.linspace(-1 * (np.pi / 300), np.pi / 300, 30)
-            rot = np.random.choice(rots)
-            shears = np.linspace(-1 * (np.pi / 300), np.pi / 300, 30)
-            shear = np.random.choice(shears)
-            shifts = np.linspace(-1 * 2, 2, 30)
-            shift = np.random.choice(shifts)
-            tform = AffineTransform(scale=scale, rotation=rot, shear=shear, translation=shift)
+        h, w = image.shape[:2]
+        scales = np.linspace(0.999, 1.001, 30)
+        scale = np.random.choice(scales)
+        rots = np.linspace(-1 * (np.pi / 300), np.pi / 300, 30)
+        rot = np.random.choice(rots)
+        shears = np.linspace(-1 * (np.pi / 300), np.pi / 300, 30)
+        shear = np.random.choice(shears)
+        shifts = np.linspace(-1 * 2, 2, 30)
+        shift = np.random.choice(shifts)
+        tform = AffineTransform(scale=scale, rotation=rot, shear=shear, translation=shift)
+        ims = []
+        ims.append(image)
+        for k in range(self.n-1):
+            ims.append((warp((ims[-1]), tform.inverse, mode="reflect") * 255.).astype("uint8"))
+        matrix = np.linalg.inv(tform.params)
 
-            ims, masks, self.c, transformation = createMasks(sample, n=self.n, c=self.c,
-                                                             just_translations=self.just_translations,
-                                                             singleimage=self.singleimage)
-            sample = {'image': ims, 'mask': masks}
 
-            ims = np.array(ims).transpose((0, 3, 1, 2))[None,]
-            masks = np.array(masks)[None,]
-            shape = ims.shape
-            masks = masks.reshape((shape[0], -1, shape[3], shape[4]))
-            ims = ims.reshape((shape[0], -1, shape[3], shape[4]))
-            masks[masks < 0.5] = 0
-            masks[masks > 0] = 1
-            if (self.affine == 1):
-                affines = np.zeros(len(transformation))
-                if (self.n > 1):  # if  the input is a single frame there is no meaning to the transformation
-                    affines = transformation
-
-        return torch.Tensor(normalize(ims)).squeeze(), torch.Tensor(np.squeeze(masks)), torch.Tensor(affines), img_name
+        if (self.affine == 1):
+            affines = np.zeros(len(matrix))
+            if (self.n > 1):  # if  the input is a single frame there is no meaning to the transformation
+                affines = matrix
+        if self.transform is not None:
+            for i in range(len(ims)):
+                ims[i] = self.transform(Image.fromarray(ims[i]))
+        return torch.cat(ims).squeeze(), torch.Tensor(affines)
 
 
 def downsample2_antialiased(X):
@@ -155,15 +158,20 @@ if __name__ == '__main__':
                                transforms.RandomHorizontalFlip(),
                                transforms.ToTensor()])
 
-    if ("video" not in opt.name):
+    if ("video" not in opt.name and "synthetic" not in opt.name):
         opt.dataroot = './dataset/ilsvrc2012/%s/' % opt.phase
         dataset = torchvision.datasets.ImageFolder(opt.dataroot,
                                                    transform=tfms)
         dataset_loader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=True,
                                                      num_workers=int(opt.num_threads))
+    elif("synthetic" in opt.name):
+        # opt.dataroot = '/isilon/Datasets/ImageNet/val/'
+        opt.dataroot = './dataset/ilsvrc2012/train_small'
+        Data = SyntheticDataset(opt.dataroot, n=opt.n_frames, transform=tfms, affine=1, imsize=256, mode="train")
+        Loader = DataLoader(Data, batch_size=opt.batch_size, num_workers=int(opt.num_threads), shuffle=True)
     else:
         Data = VideoDataset(root_dir=opt.dataroot, n=opt.n_frames, transform=tfms)
-        Loader = DataLoader(Data, batch_size=1, num_workers=int(opt.num_threads), shuffle=True)
+        Loader = DataLoader(Data, batch_size=opt.batch_size, num_workers=int(opt.num_threads), shuffle=True)
 
     model = create_model(opt)
     model.setup(opt)
@@ -172,7 +180,7 @@ if __name__ == '__main__':
     visualizer = Visualizer(opt)
     total_steps = 0
     #     mode = "Videos"
-    if ("video" in opt.name):
+    if ("video" in opt.name or "synthetic" in opt.name):
         dataset_size = len(Data)
         l = 0
         for param in model.netG.parameters():
@@ -190,7 +198,7 @@ if __name__ == '__main__':
             # for i, data in enumerate(dataset):
             mean = []
             for i, data_raw in enumerate(Loader):
-                data_raw = data_raw.cpu()
+                data_raw = data_raw[0].cpu()
                 mean.append(np.mean(np.mean(data_raw[0,0:3].numpy(), 2),1))
                 # print(np.mean(mean))
                 data = {}
@@ -199,6 +207,7 @@ if __name__ == '__main__':
 
                 HintB = []
                 MaskB = []
+                badbatch = False
                 for f in range(0, data_raw.shape[1], 3):
                     # print(data_raw[:,f:f+3].shape)
                     d = util.get_colorization_data(data_raw[:, f:f + 3], opt, p=opt.sample_p)
@@ -213,6 +222,9 @@ if __name__ == '__main__':
                 except:
                     for l in range(len(A)):
                         print(A[l].shape)
+                    badbatch = True
+                if (badbatch):
+                    continue
                 data["B"] = torch.cat(B, 1)
                 data["hint_B"] = torch.cat(HintB, 1)
                 data["mask_B"] = torch.cat(MaskB, 1)
